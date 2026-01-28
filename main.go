@@ -1,6 +1,7 @@
 package main
 
 import (
+    "fmt"
     "log"
     "time"
     "net"
@@ -19,26 +20,38 @@ func main() {
 
     // ------- Network Logic -------
 
+    fmt.Printf("Host a game (1) or Join a game (2): ")
+    var input int
+    fmt.Scanf("%d", &input)
+
+    var peerAddr *net.UDPAddr
+
     netw, _ := network.Start(9999)
     defer netw.Close()
 
-    peerAddr := &net.UDPAddr {
-        IP: net.ParseIP("192.168.1.42"),     //address here!!
-        Port: 9999,
+    if input == 2 {
+
+        fmt.Printf( "Enter a ip address: " )
+        var oppIp string 
+        fmt.Scanf("%s", &oppIp)
+
+        peerAddr = &net.UDPAddr {
+            IP: net.ParseIP(oppIp),
+            Port: 9999,
+        }
+
+        netw.Send(network.Message{Type: "hello"}, peerAddr)
+
     }
 
-    netw.Send(network.Message{Type: "hello"}, peerAddr)
-
-    for {
-        msg, addr, _ := netw.Receive()
-
-        switch msg.Type {
-        case "hello":
-            log.Println("Got hello from", addr)
-            netw.Send(network.Message{Type: "hello_ack"}, addr)
-        case "hello_ack":
-            log.Println("connected to peer:", addr)
-        }
+    msg, addr, _ := netw.Receive()
+        
+    switch msg.Type {
+    case "hello":
+        log.Println("Got hello from", addr)
+        netw.Send(network.Message{Type: "hello_ack"}, addr)
+    case "hello_ack":
+        log.Println("connected to peer:", addr)
     }
 
     // ------- Game Logic -------
