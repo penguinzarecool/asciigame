@@ -1,0 +1,96 @@
+package main
+
+import (
+    "log"
+    "time"
+    "encoding/json"
+    "github.com/gdamore/tcell/v2"
+)
+
+//edit with all data that I need
+type MyData struct {
+    X int `json:"x"`
+    Y int `json:"y"`
+}
+
+func main() {
+
+    // ------- Network Logic -------
+
+    netw, err := network.Start(9999)
+    if err != nil {
+        log.Fatal(err)
+    }
+    defer netw.Close()
+
+    go func() {
+        for {
+            netw.BroadcastDiscover(9999)
+            time.Sleep(2 * time.Second)
+        }
+    }()
+
+    for {
+        msg, peer, err := netw.Receive()
+        if err != nil {
+            continue
+        }
+
+        switch msg.Type {
+        
+        case network.MsgDiscover:
+            netw.Send(network.Message{Type: network.NsgHello}, peer)
+        case network.MsgHello:
+            log.Println("Connected to peer: ", peer.Addr)
+
+            payload := MyData{X: 10, Y: 20}
+            raw, _ := json.Marshal(payload)
+
+            netw.Send(network.Message{
+                Type: network.MsgData,
+                Data: raw,
+            }, peer)
+
+        case network.MsgData:
+            var data MyData
+            json.Unmarshal(msg.Data, &data)
+            log.Println("Received data: ", data)
+
+        }
+    }
+    return
+    
+    // ------- Game Logic -------
+
+    screen, err := tcell.NewScreen()
+    if err != nil {
+        log.Fatal(err)
+    }
+    if err := screen.Init(); err != nil {
+        log.Fatal(err)
+    }
+    defer screen.Fini()
+
+    game := NewGame(146, 52)
+
+    inputCh := make(chan Input)
+    quitCh := make(chan struct{})
+
+    startInputLoop(screen, inputCh, quitCh)
+
+    ticker := time.NewTicker(33 * time.Millisecond)
+    defer ticker.Stop()
+
+    for {
+        select {
+        case <- quitCh:
+            return
+
+        case input := <-inputCh:
+            game.ApplyInput(input)
+
+        case <-ticker.C: 
+            Render(screen, game)
+        }
+    }
+}
